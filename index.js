@@ -8,33 +8,16 @@ export default {
       const tag = url.searchParams.get("c") || "";
       const t = new Date().toISOString();
 
-      // 1. In KV speichern (falls gebunden)
-      if (env.HITS) {
-        await env.HITS.put(Date.now() + "-" + ip, JSON.stringify({ ip, ua, tag, t }));
-      }
-
-      // 2. Infos über die IP holen (Provider, Stadt, Land)
-      let info = "Keine Info";
+      // 1. In KV speichern
       try {
-        // Wir holen uns die Daten von ip-api.com
-        const apiRes = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,city,isp,org`);
-        const data = await apiRes.json();
-        if (data.status === "success") {
-          info = `${data.city}, ${data.country} | Provider: ${data.isp}`;
+        if (env.HITS) {
+          await env.HITS.put(Date.now() + "-" + ip, JSON.stringify({ ip, ua, tag, t }));
         }
-      } catch (e) {
-        info = "API Fehler";
-      }
+      } catch (e) {}
 
-      // 3. An Telegram senden
+      // 2. An Telegram senden
       if (env.BOT_TOKEN && env.CHAT_ID) {
-        const msg = 
-          `🎯 **Hit!**\n` +
-          `🏷️ Tag: ${tag || "-"}\n` +
-          `🌐 IP: ${ip}\n` +
-          `📍 Ort: ${info}\n` +
-          `📱 Device: ${ua.slice(0, 60)}...\n` +
-          `⏰ Zeit: ${t}`;
+        const msg = `🎯 Hit!\n🏷️ Tag: ${tag || "-"}\n🌐 IP: ${ip}\n📱 UA: ${ua.slice(0, 60)}...\n⏰ Zeit: ${t}`;
 
         try {
           await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
@@ -42,16 +25,15 @@ export default {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               chat_id: env.CHAT_ID,
-              text: msg,
-              parse_mode: "Markdown"
+              text: msg
             })
           });
         } catch (e) {}
       }
 
-      // Unsichtbares Bild zurückgeben
+      // 3. Das unsichtbare Bild zurückgeben
       const gif = Uint8Array.from(atob("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="), c => c.charCodeAt(0));
-      return new Response(gif, { headers: { "Content-Type": "image/gif" } });
+      return new Response(gif, { headers: { "Content-Type": "image/gif", "Cache-Control": "no-store" } });
     }
 
     return new Response("Läuft.", { status: 200 });
